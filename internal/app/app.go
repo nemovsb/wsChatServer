@@ -20,6 +20,7 @@ func NewApp() *App {
 	}
 }
 
+// CloseConnections
 func (a *App) CloseConnections() {
 	for _, ch := range a.Chanels {
 		for _, conn := range ch.Connects {
@@ -32,6 +33,7 @@ func (a *App) CloseConnections() {
 	}
 }
 
+// Serve served websocket connections
 func (a *App) Serve(ws websocket.Conn) {
 
 	handshakeMessage, err := read(&ws)
@@ -46,21 +48,14 @@ func (a *App) Serve(ws websocket.Conn) {
 	connect := NewConnect(client, ws)
 
 	ch, ok := a.Chanels[handshakeMessage.ChanelName]
-	//fmt.Printf("ch.ClientsCount	get: %d\n", *(ch.ClientsCount))
 
 	if !ok {
-
-		fmt.Printf("!ok: %v\n", !ok)
 		ch = NewChanel(*connect, handshakeMessage)
 		a.Chanels[handshakeMessage.ChanelName] = ch
-		fmt.Printf("ch.ClientsCount	NewChanel: %d\n", *(ch.ClientsCount))
-	} else {
-		fmt.Printf("ok: %v\n", ok)
-		ch.AddConn(connect)
-		fmt.Printf("ch.ClientsCount	AddConn: %d\n", *(ch.ClientsCount))
-	}
 
-	//fmt.Printf("ch.Connects: %v\n", ch.Connects)
+	} else {
+		ch.AddConn(connect)
+	}
 
 	for *(ch.ClientsCount) != 0 {
 
@@ -70,30 +65,31 @@ func (a *App) Serve(ws websocket.Conn) {
 			fmt.Printf("read error: %s\n", err)
 
 			if *(ch.ClientsCount) == 0 {
-				fmt.Printf("chanel %s delete\n", ch.Name)
-				delete(a.Chanels, ch.Name)
+				fmt.Printf("chanel %s delete\n", message.ChanelName)
+				delete(a.Chanels, message.ChanelName)
 
 			}
 
 			return
 		}
 
-		fmt.Printf("message: %+v\n", message)
+		_, ok := a.Chanels[message.ChanelName]
+		if ok {
 
-		for _, conn := range ch.Connects {
-			if conn.Nickname == client.Nickname {
-				continue
-			}
+			for _, conn := range a.Chanels[message.ChanelName].Connects {
+				if conn.Nickname == client.Nickname {
+					continue
+				}
 
-			err := send(conn, message)
-			if err != nil {
-				ch.DelConn(&conn)
-				fmt.Printf("send error: %s\n", err)
-				continue
+				err := send(conn, message)
+				if err != nil {
+					ch.DelConn(&conn)
+					fmt.Printf("send error: %s\n", err)
+					continue
+				}
 			}
 		}
 
-		fmt.Printf("ch.ClientsCount: %d\n", *(ch.ClientsCount))
 	}
 
 }
@@ -106,7 +102,6 @@ func read(conn *websocket.Conn) (Message, error) {
 		err := conn.ReadJSON(&message)
 		if err != nil {
 			log.Println(err)
-			return Message{}, err
 		}
 
 		return message, err
