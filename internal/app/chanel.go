@@ -18,6 +18,7 @@ func NewChanel(c Connect, m Message) Chanel {
 	connects[m.ClientName] = c
 	cc := 1
 	return Chanel{
+		mx:           &sync.Mutex{},
 		Id:           time.Now().Unix(),
 		Name:         m.ChanelName,
 		ClientsCount: &cc,
