@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 	"ws_server/internal/app"
+	"ws_server/internal/app/ws"
 	"ws_server/internal/config"
 	"ws_server/internal/server"
 	"ws_server/internal/server/router"
@@ -31,12 +33,17 @@ func main() {
 
 	servConfig := server.NewServerConfig(config.HttpServer.Port)
 
-	application := app.NewApp()
+	websocketController := ws.NewConnector()
 	go func() {
-		application.ServeChanels()
+		websocketController.Start()
 	}()
 
-	handler := router.NewHandler(application)
+	application := app.NewApp(websocketController)
+	go func() {
+		application.Start(context.TODO())
+	}()
+
+	handler := router.NewHandler(application, websocketController)
 
 	router := router.NewRouter(handler)
 

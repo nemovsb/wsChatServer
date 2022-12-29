@@ -1,15 +1,13 @@
 package app
 
-import "github.com/gorilla/websocket"
-
 type Connect struct {
+	Id int
 	*Client
-	ws websocket.Conn
 }
 
-func NewConnect(client *Client, ws websocket.Conn) *Connect {
+func NewConnect(id int, client *Client) *Connect {
 	return &Connect{
+		Id:     id,
 		Client: client,
-		ws:     ws,
 	}
 }

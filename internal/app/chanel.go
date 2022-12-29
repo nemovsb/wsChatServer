@@ -38,7 +38,7 @@ func NewChanel(c Connect, m Message) *Chanel {
 	}
 }
 
-func (c *Chanel) Broadcast() {
+func (c *Chanel) Broadcast(out chan<- SendTask) {
 	for {
 
 		fmt.Printf("\nready to broadcast messages! chanel: %s, %v\n", c.Name, &c.in)
@@ -60,14 +60,19 @@ func (c *Chanel) Broadcast() {
 						continue
 					}
 
-					err := send(connect, message)
-					if err != nil {
-						if c.DelConn(&connect) {
-							break
-						}
-						fmt.Printf("send error: %s\n", err)
-						continue
+					out <- SendTask{
+						M:  message,
+						To: connect,
 					}
+
+					// err := send(connect, message)
+					// if err != nil {
+					// 	if c.DelConn(&connect) {
+					// 		break
+					// 	}
+					// 	fmt.Printf("send error: %s\n", err)
+					// 	continue
+					// }
 				}
 			}
 		}
