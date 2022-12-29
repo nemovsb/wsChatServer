@@ -3,20 +3,20 @@ package app
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
 
 type App struct {
-	Chanels map[string]Chanel
+	ServeChannels chan *Chanel
+	Chanels       map[string]*Chanel
 }
 
 func NewApp() *App {
-
-	ch := make(map[string]Chanel)
-
 	return &App{
-		Chanels: ch,
+		ServeChannels: make(chan *Chanel),
+		Chanels:       make(map[string]*Chanel),
 	}
 }
 
@@ -33,68 +33,92 @@ func (a *App) CloseConnections() {
 	}
 }
 
+func (a *App) ServeChanels() {
+	var wg sync.WaitGroup
+
+	for ch := range a.ServeChannels {
+		wg.Add(1)
+		go func(channel *Chanel) {
+			channel.Broadcast()
+			delete(a.Chanels, channel.Name)
+			wg.Done()
+		}(ch)
+	}
+	wg.Wait()
+}
+
 // Serve served websocket connections
 func (a *App) Serve(ws websocket.Conn) {
 
-	handshakeMessage, err := read(&ws)
-	if err != nil {
-		fmt.Printf("read error: %s\n", err)
-		return
-	}
+	fmt.Printf("new connect! \n")
 
-	fmt.Printf("handshakeMessage: %+v\n", handshakeMessage)
+	var wg sync.WaitGroup
+
+	inMessage := make(chan Message)
+
+	//read incoming messages
+	wg.Add(1)
+	readErr := make(chan error)
+	go func() {
+		readErr <- read(&ws, inMessage)
+
+		wg.Done()
+
+	}()
+
+	handshakeMessage := <-inMessage
 
 	client := NewClient(handshakeMessage.ClientName)
 	connect := NewConnect(client, ws)
 
-	ch, ok := a.Chanels[handshakeMessage.ChanelName]
+	_, ok := a.Chanels[handshakeMessage.ChanelName]
 
 	if !ok {
-		ch = NewChanel(*connect, handshakeMessage)
-		a.Chanels[handshakeMessage.ChanelName] = ch
+		a.Chanels[handshakeMessage.ChanelName] = NewChanel(*connect, handshakeMessage)
+		a.ServeChannels <- a.Chanels[handshakeMessage.ChanelName]
+		fmt.Printf("create new channel! owner: %s\n", handshakeMessage.ClientName)
+
+		// wg.Add(1)
+		// go func() {
+		// 	ch := a.Chanels[handshakeMessage.ChanelName]
+		// 	ch.Broadcast()
+
+		// 	wg.Done()
+		// }()
 
 	} else {
-		ch.AddConn(connect)
+		a.Chanels[handshakeMessage.ChanelName].AddConn(connect)
 	}
 
-	for *(ch.ClientsCount) != 0 {
-
-		message, err := read(&ws)
-		if err != nil {
-			ch.DelConn(connect)
-			fmt.Printf("read error: %s\n", err)
-
-			if *(ch.ClientsCount) == 0 {
-				fmt.Printf("chanel %s delete\n", message.ChanelName)
-				delete(a.Chanels, message.ChanelName)
-
-			}
-
-			return
-		}
-
-		_, ok := a.Chanels[message.ChanelName]
-		if ok {
-
-			for _, conn := range a.Chanels[message.ChanelName].Connects {
-				if conn.Nickname == client.Nickname {
-					continue
+	for {
+		select {
+		case <-readErr:
+			{
+				if a.Chanels[handshakeMessage.ChanelName].DelConn(connect) {
+					a.Chanels[handshakeMessage.ChanelName].cancelCtx()
 				}
+				return
+			}
+		case message := <-inMessage:
+			{
 
-				err := send(conn, message)
-				if err != nil {
-					ch.DelConn(&conn)
-					fmt.Printf("send error: %s\n", err)
-					continue
+				if message.ChanelName == handshakeMessage.ChanelName {
+
+					fmt.Printf("send message to broadcast %+v, %v\n", message, &(a.Chanels[handshakeMessage.ChanelName].in))
+
+					a.Chanels[handshakeMessage.ChanelName].in <- message
+				} else {
+					(fmt.Printf("wrong channel %s\n", message.ChanelName))
 				}
 			}
 		}
-
 	}
+
+	wg.Wait()
 
 }
 
-func read(conn *websocket.Conn) (Message, error) {
+func read(conn *websocket.Conn, in chan<- Message) error {
 	for {
 
 		message := Message{}
@@ -102,9 +126,12 @@ func read(conn *websocket.Conn) (Message, error) {
 		err := conn.ReadJSON(&message)
 		if err != nil {
 			log.Println(err)
+			return err
 		}
 
-		return message, err
+		fmt.Printf("new message %+v\n", message)
+
+		in <- message
 
 	}
 }
