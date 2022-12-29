@@ -24,20 +24,23 @@ func main() {
 		log.Fatal("Read config error: ", err)
 	}
 
+	var (
+		serviceGroup        group.Group
+		interruptionChannel = make(chan os.Signal, 1)
+	)
+
 	servConfig := server.NewServerConfig(config.HttpServer.Port)
 
 	application := app.NewApp()
+	go func() {
+		application.ServeChanels()
+	}()
 
 	handler := router.NewHandler(application)
 
 	router := router.NewRouter(handler)
 
 	server := server.NewServer(servConfig, router)
-
-	var (
-		serviceGroup        group.Group
-		interruptionChannel = make(chan os.Signal, 1)
-	)
 
 	serviceGroup.Add(func() error {
 		signal.Notify(interruptionChannel, syscall.SIGINT, syscall.SIGTERM)
