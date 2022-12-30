@@ -26,6 +26,6 @@ func (h *Handler) wsEndpoint(ctx *gin.Context) {
 	}
 	defer ws.Close()
 
-	_ = h.wsController.AddConn(ws)
+	h.wsController.ServeConnection(ws)
 
 }

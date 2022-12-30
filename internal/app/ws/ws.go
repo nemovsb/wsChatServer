@@ -5,17 +5,13 @@ import (
 	"log"
 	"strconv"
 	"sync"
+	"time"
 	"ws_server/internal/app"
 
 	"github.com/gorilla/websocket"
 )
 
-var id = 1
-
-func getNewId() int {
-	id++
-	return id
-}
+var id = 0
 
 type Connect struct {
 	Id int
@@ -27,7 +23,7 @@ type Connect struct {
 
 func NewConnect(ws *websocket.Conn) *Connect {
 	return &Connect{
-		Id:     getNewId(),
+		Id:     GetId(),
 		Client: app.Client{},
 		Chat:   app.Chanel{},
 		wsConn: ws,
@@ -52,12 +48,19 @@ func NewConnector() *WebSocketConnector {
 }
 
 func (ws *WebSocketConnector) AddConn(wsConnect *websocket.Conn) *Connect {
-	ws.Connects[id] = NewConnect(wsConnect)
-	return ws.Connects[id]
+	c := NewConnect(wsConnect)
+
+	ws.Connects[c.Id] = c
+	return ws.Connects[c.Id]
 }
 
-func (ws *WebSocketConnector) DelConn(id int) {
-	delete(ws.Connects, id)
+func (ws *WebSocketConnector) DelConn(connectId int) {
+	delete(ws.Connects, connectId)
+}
+
+func (ws *WebSocketConnector) ServeConnection(c *websocket.Conn) {
+	ws.InputConn <- c
+	time.Sleep(60 * time.Second)
 }
 
 func (ws *WebSocketConnector) Start() {
@@ -71,6 +74,8 @@ func (ws *WebSocketConnector) Start() {
 			wg.Done()
 
 			connect := ws.AddConn(wsc)
+			fmt.Printf("Create new connect: %+v\n", *connect)
+
 			err := read(connect.wsConn, ws.InputMessage)
 			if err != nil {
 				fmt.Printf("read error: %s", err)
@@ -115,4 +120,12 @@ func (ws *WebSocketConnector) GetMessages() (<-chan app.Message, <-chan *app.Eve
 
 func (ws *WebSocketConnector) SendMessage(m app.Message, connect app.Connect) error {
 	return nil
+}
+
+func GetId() int {
+	id = id + 1
+
+	fmt.Println("new id = ", id)
+	return id
+
 }

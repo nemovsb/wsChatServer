@@ -2,7 +2,6 @@ package router
 
 import (
 	"ws_server/internal/app"
-	"ws_server/internal/app/ws"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -14,7 +13,7 @@ type Handler struct {
 }
 
 type wsController interface {
-	AddConn(wsConnect *websocket.Conn) *ws.Connect
+	ServeConnection(wsConnect *websocket.Conn)
 }
 
 func NewHandler(a *app.App, wsC wsController) *Handler {

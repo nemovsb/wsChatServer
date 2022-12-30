@@ -35,28 +35,18 @@ func (a *App) Start(ctx context.Context) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	for {
-		select {
-		case <-ctx.Done():
-			{
-				return
-			}
-		default:
-			{
-				wg.Add(1)
-				go func() {
-					a.ServeChanels()
-					wg.Done()
-				}()
+	wg.Add(1)
+	go func() {
+		a.ServeChanels()
+		wg.Done()
+	}()
 
-				wg.Add(1)
-				go func() {
-					a.ServeConnections()
-					wg.Done()
-				}()
-			}
-		}
-	}
+	wg.Add(1)
+	go func() {
+		a.ServeConnections()
+		wg.Done()
+	}()
+
 }
 
 func (a *App) ServeChanels() {
@@ -130,7 +120,10 @@ func (a *App) ServeConnections() {
 			if chat, ok := a.Chanels[message.ChanelName]; !ok {
 				a.CreateChannel(message)
 
+				fmt.Printf("create channel:\n%+v\n", a.Chanels[message.ChanelName])
+
 			} else if connect, ok := chat.Connects[message.ClientName]; !ok {
+				connect = *NewConnect(message.FromConnId, NewClient(message.ClientName))
 				chat.AddConn(&connect)
 
 			} else {

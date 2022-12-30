@@ -8,7 +8,8 @@ import (
 )
 
 type Chanel struct {
-	in        chan Message
+	in chan Message
+
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 
@@ -83,6 +84,8 @@ func (c *Chanel) Broadcast(out chan<- SendTask) {
 
 func (c *Chanel) AddConn(conn *Connect) {
 	c.mx.Lock()
+
+	fmt.Printf("conn: %+v\n", *conn)
 
 	*(c.ClientsCount)++
 	c.Connects[conn.Nickname] = *conn
